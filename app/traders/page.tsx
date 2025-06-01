@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { getSupabaseClient } from "@/lib/supabase"
 import type { PokemonCard } from "@/types/pokemon"
-import { Users, Search, Copy, Check, ArrowRightLeft } from "lucide-react"
+import { Users, Search, Copy, Check, ArrowRightLeft, Info } from "lucide-react"
 import { fetchPokemonCards } from "@/lib/pokemon-api"
 import Image from "next/image"
 
@@ -24,6 +24,8 @@ interface TradeOpportunity {
   card: PokemonCard
   usersWithCard: UserWithCard[]
 }
+
+const TRADEABLE_RARITIES = new Set(["◊", "◊◊", "◊◊◊", "◊◊◊◊", "☆"])
 
 export default function TradersPage() {
   const { user, loading: authLoading } = useAuth()
@@ -77,6 +79,9 @@ export default function TradersPage() {
     if (!user || allCards.length === 0) return
 
     try {
+      // Filter cards to only include tradeable ones
+      const tradeableCards = allCards.filter((card) => TRADEABLE_RARITIES.has(card.rarity))
+
       // Get all missing cards from all users
       const { data: allMissingCards, error: missingError } = await supabase
         .from("missing_cards")
@@ -109,13 +114,18 @@ export default function TradersPage() {
         userMissingCardsMap[missing.user_id].add(missing.card_id)
       })
 
-      // Cards that I own (not in my missing cards)
-      const myOwnedCards = new Set(allCards.map((card) => card.id).filter((cardId) => !myMissingCards.has(cardId)))
+      // Cards that I own (not in my missing cards) and are tradeable
+      const myOwnedTradeableCards = new Set(
+        tradeableCards.map((card) => card.id).filter((cardId) => !myMissingCards.has(cardId)),
+      )
 
       const opportunities: TradeOpportunity[] = []
 
-      // For each card I'm missing, find users who have it
+      // For each tradeable card I'm missing, find users who have it
       Array.from(myMissingCards).forEach((cardId) => {
+        const card = tradeableCards.find((c) => c.id === cardId)
+        if (!card) return // Skip if card is not tradeable
+
         const usersWhoHaveThisCard: UserWithCard[] = []
 
         activeProfiles.forEach((profile) => {
@@ -124,11 +134,11 @@ export default function TradersPage() {
           // User has this card if they haven't marked it as missing
           // (we already know they're active since they're in activeProfiles)
           if (!userMissingThisCard) {
-            // Find cards this user needs that I own
+            // Find tradeable cards this user needs that I own
             const userMissingCardIds = userMissingCardsMap[profile.id] || new Set()
             const cardsTheyNeedThatIOwn = Array.from(userMissingCardIds)
-              .filter((missingCardId) => myOwnedCards.has(missingCardId))
-              .map((cardId) => allCards.find((card) => card.id === cardId))
+              .filter((missingCardId) => myOwnedTradeableCards.has(missingCardId))
+              .map((cardId) => tradeableCards.find((card) => card.id === cardId))
               .filter(Boolean) as PokemonCard[]
 
             usersWhoHaveThisCard.push({
@@ -141,13 +151,10 @@ export default function TradersPage() {
         })
 
         if (usersWhoHaveThisCard.length > 0) {
-          const card = allCards.find((c) => c.id === cardId)
-          if (card) {
-            opportunities.push({
-              card,
-              usersWithCard: usersWhoHaveThisCard,
-            })
-          }
+          opportunities.push({
+            card,
+            usersWithCard: usersWhoHaveThisCard,
+          })
         }
       })
 
@@ -203,7 +210,7 @@ export default function TradersPage() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Find Traders</h1>
           <p className="text-gray-600">
-            Find users who have the cards you're missing and see what you can trade to them
+            Find users who have the tradeable cards you're missing and see what you can trade to them
           </p>
         </div>
 
@@ -212,7 +219,7 @@ export default function TradersPage() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
-              placeholder="Search missing cards..."
+              placeholder="Search tradeable missing cards..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -224,7 +231,7 @@ export default function TradersPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm border p-4">
             <div className="text-2xl font-bold text-red-600">{tradeOpportunities.length}</div>
-            <div className="text-sm text-gray-600">Cards Available for Trade</div>
+            <div className="text-sm text-gray-600">Tradeable Cards Available</div>
           </div>
           <div className="bg-white rounded-lg shadow-sm border p-4">
             <div className="text-2xl font-bold text-blue-600">
@@ -298,7 +305,7 @@ export default function TradersPage() {
                             <div className="flex items-center space-x-2 mb-3">
                               <ArrowRightLeft className="w-4 h-4 text-green-600" />
                               <span className="text-sm font-medium text-green-700">
-                                Cards you can trade to them ({userWithCard.cardsTheyNeed.filter(x => x.rarity === opportunity.card.rarity).length})
+                                Tradeable cards you can offer ({userWithCard.cardsTheyNeed.filter(x => x.rarity === opportunity.card.rarity).length})
                               </span>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -338,11 +345,11 @@ export default function TradersPage() {
           <div className="text-center py-12">
             <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <div className="text-gray-500 text-lg">
-              {tradeOpportunities.length === 0 ? "No trade opportunities found" : "No cards match your search"}
+              {tradeOpportunities.length === 0 ? "No tradeable opportunities found" : "No cards match your search"}
             </div>
             <div className="text-gray-400 text-sm mt-2">
               {tradeOpportunities.length === 0
-                ? "Either you have all cards or no other users are registered yet"
+                ? "Either you have all tradeable cards or no other users have the cards you need"
                 : "Try a different search term"}
             </div>
           </div>
