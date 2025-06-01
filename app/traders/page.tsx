@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { getSupabaseClient } from "@/lib/supabase"
 import type { PokemonCard } from "@/types/pokemon"
-import { Users, Search, Copy, Check } from "lucide-react"
+import { Users, Search, Copy, Check, ArrowRightLeft } from "lucide-react"
 import { fetchPokemonCards } from "@/lib/pokemon-api"
 import Image from "next/image"
 
@@ -17,6 +17,7 @@ interface UserWithCard {
   userId: string
   username: string
   friendCode: string
+  cardsTheyNeed: PokemonCard[]
 }
 
 interface TradeOpportunity {
@@ -76,6 +77,7 @@ export default function TradersPage() {
     if (!user || allCards.length === 0) return
 
     try {
+      // Get all missing cards from all users
       const { data: allMissingCards, error: missingError } = await supabase
         .from("missing_cards")
         .select("card_id, user_id")
@@ -91,6 +93,18 @@ export default function TradersPage() {
 
       if (profilesError) throw profilesError
 
+      // Create a map of user_id to their missing cards
+      const userMissingCardsMap: Record<string, Set<string>> = {}
+      allMissingCards.forEach((missing: any) => {
+        if (!userMissingCardsMap[missing.user_id]) {
+          userMissingCardsMap[missing.user_id] = new Set()
+        }
+        userMissingCardsMap[missing.user_id].add(missing.card_id)
+      })
+
+      // Cards that I own (not in my missing cards)
+      const myOwnedCards = new Set(allCards.map((card) => card.id).filter((cardId) => !myMissingCards.has(cardId)))
+
       const opportunities: TradeOpportunity[] = []
 
       // For each card I'm missing, find users who have it
@@ -98,17 +112,22 @@ export default function TradersPage() {
         const usersWhoHaveThisCard: UserWithCard[] = []
 
         allProfiles.forEach((profile) => {
-          const userMissingThisCard = allMissingCards.some(
-            (missing: any) => missing.user_id === profile.id && missing.card_id === cardId,
-          )
+          const userMissingThisCard = userMissingCardsMap[profile.id]?.has(cardId) || false
 
           // User has this card if they haven't marked it as missing
-          // We no longer require them to have marked ANY cards as missing
           if (!userMissingThisCard) {
+            // Find cards this user needs that I own
+            const userMissingCardIds = userMissingCardsMap[profile.id] || new Set()
+            const cardsTheyNeedThatIOwn = Array.from(userMissingCardIds)
+              .filter((missingCardId) => myOwnedCards.has(missingCardId))
+              .map((cardId) => allCards.find((card) => card.id === cardId))
+              .filter(Boolean) as PokemonCard[]
+
             usersWhoHaveThisCard.push({
               userId: profile.id,
               username: profile.username || `User ${profile.friend_code}`,
               friendCode: profile.friend_code,
+              cardsTheyNeed: cardsTheyNeedThatIOwn,
             })
           }
         })
@@ -175,7 +194,9 @@ export default function TradersPage() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Find Traders</h1>
-          <p className="text-gray-600">Find users who have the cards you're missing</p>
+          <p className="text-gray-600">
+            Find users who have the cards you're missing and see what you can trade to them
+          </p>
         </div>
 
         {/* Search */}
@@ -240,28 +261,64 @@ export default function TradersPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-6">
                     {opportunity.usersWithCard.map((userWithCard) => (
-                      <div
-                        key={userWithCard.userId}
-                        className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
-                      >
-                        <div className="flex-1">
-                          <div className="font-medium text-sm">{userWithCard.username}</div>
-                          <div className="text-xs text-gray-500">Code: {userWithCard.friendCode}</div>
+                      <div key={userWithCard.userId} className="border rounded-lg p-4 bg-gray-50">
+                        {/* User Info */}
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">@{userWithCard.username}</div>
+                            <div className="text-xs text-gray-500">Code: {userWithCard.friendCode}</div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyFriendCode(userWithCard.friendCode)}
+                            className="ml-2"
+                          >
+                            {copiedCode === userWithCard.friendCode ? (
+                              <Check className="w-3 h-3" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </Button>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyFriendCode(userWithCard.friendCode)}
-                          className="ml-2"
-                        >
-                          {copiedCode === userWithCard.friendCode ? (
-                            <Check className="w-3 h-3" />
-                          ) : (
-                            <Copy className="w-3 h-3" />
-                          )}
-                        </Button>
+
+                        {/* Cards you can trade to them */}
+                        {userWithCard.cardsTheyNeed.length > 0 && (
+                          <div className="border-t pt-4">
+                            <div className="flex items-center space-x-2 mb-3">
+                              <ArrowRightLeft className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-medium text-green-700">
+                                Cards you can trade to them ({userWithCard.cardsTheyNeed.length})
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                              {userWithCard.cardsTheyNeed.slice(0, 8).map((card) => (
+                                <div key={card.id} className="flex items-center space-x-2 p-2 bg-white rounded border">
+                                  <div className="w-8 h-10 relative bg-gray-100 rounded overflow-hidden flex-shrink-0">
+                                    <Image
+                                      src={getImageUrl(card.image) || "/placeholder.svg"}
+                                      alt={card.name}
+                                      fill
+                                      className="object-cover"
+                                      unoptimized
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-medium truncate">{card.name}</div>
+                                    <div className="text-xs text-gray-500">{card.rarity}</div>
+                                  </div>
+                                </div>
+                              ))}
+                              {userWithCard.cardsTheyNeed.length > 8 && (
+                                <div className="flex items-center justify-center p-2 bg-white rounded border text-xs text-gray-500">
+                                  +{userWithCard.cardsTheyNeed.length - 8} more
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
