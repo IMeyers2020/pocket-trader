@@ -1,5 +1,4 @@
 const nextConfig = {
-  basePath: '/tcg-trader',
   eslint: {
     ignoreDuringBuilds: true,
   },
