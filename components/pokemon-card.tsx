@@ -38,6 +38,7 @@ export function PokemonCardComponent({
   loading = false,
 }: PokemonCardProps) {
   const [imageLoading, setImageLoading] = useState(true)
+  const [imageError, setImageError] = useState(false)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
 
   const getRarityColor = (rarity: string) => {
@@ -80,6 +81,19 @@ export function PokemonCardComponent({
     }
   }
 
+  // Create proxied image URL
+  const getImageUrl = (originalUrl: string) => {
+    if (!originalUrl) return "/placeholder.svg"
+
+    // If it's already a local URL, use it as-is
+    if (originalUrl.startsWith("/") || originalUrl.startsWith("data:")) {
+      return originalUrl
+    }
+
+    // Use the image proxy for external URLs
+    return `/api/image-proxy?url=${encodeURIComponent(originalUrl)}`
+  }
+
   return (
     <Card
       className={`overflow-hidden transition-all duration-200 hover:shadow-lg ${
@@ -89,19 +103,32 @@ export function PokemonCardComponent({
       <CardContent className="p-4">
         <div className="relative mb-3">
           <div className="aspect-[3/4] relative bg-gray-100 rounded-lg overflow-hidden">
-            {imageLoading && (
+            {imageLoading && !imageError && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
               </div>
             )}
-            <Image
-              src={card.image || "/placeholder.svg"}
-              alt={card.name}
-              fill
-              className="object-cover"
-              onLoad={() => setImageLoading(false)}
-              crossOrigin="anonymous"
-            />
+            {imageError ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
+                <div className="text-center text-gray-500 text-xs p-2">
+                  <div className="mb-1">Image</div>
+                  <div>Unavailable</div>
+                </div>
+              </div>
+            ) : (
+              <Image
+                src={getImageUrl(card.image) || "/placeholder.svg"}
+                alt={card.name}
+                fill
+                className="object-cover"
+                onLoad={() => setImageLoading(false)}
+                onError={() => {
+                  setImageError(true)
+                  setImageLoading(false)
+                }}
+                unoptimized
+              />
+            )}
           </div>
           {card.ex === "Yes" && <Badge className="absolute top-2 right-2 bg-yellow-500 text-white">EX</Badge>}
         </div>
