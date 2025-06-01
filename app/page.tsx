@@ -28,6 +28,7 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPack, setSelectedPack] = useState<string>("all")
   const [selectedType, setSelectedType] = useState<string>("all")
+  const [selectedRarity, setSelectedRarity] = useState<string>("all")
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const supabase = getSupabaseClient()
 
@@ -205,11 +206,13 @@ export default function HomePage() {
     const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesPack = selectedPack === "all" || card.pack === selectedPack
     const matchesType = selectedType === "all" || card.type === selectedType
+    const matchesRarity = selectedRarity === "all" || card.rarity === selectedRarity
     return matchesSearch && matchesPack && matchesType
   })
 
-  const packs = [...new Set(cards.map((card) => card.pack))]
-  const types = [...new Set(cards.map((card) => card.type))]
+  const packs = [...new Set(cards.filter(card => Boolean(card.pack) && card.pack !== "Error").map((card) => card.pack))]
+  const types = [...new Set(cards.filter(card => Boolean(card.type) && card.type !== "Error").map((card) => card.type))]
+  const rarities = [...new Set(cards.filter(card => Boolean(card.rarity) && card.rarity !== "Error").map((card) => card.rarity))]
 
   if (authLoading || !user) {
     return (
@@ -253,6 +256,19 @@ export default function HomePage() {
                   {packs.map((pack) => (
                     <SelectItem key={pack} value={pack}>
                       {pack}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedPack} onValueChange={setSelectedRarity}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Rarity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Rarities</SelectItem>
+                  {rarities.map((rarity: string) => (
+                    <SelectItem key={rarity} value={rarity}>
+                      {rarity}
                     </SelectItem>
                   ))}
                 </SelectContent>
