@@ -18,7 +18,7 @@ import {
 
 interface UserWithCard {
   userId: string
-  email: string
+  username: string
   friendCode: string
 }
 
@@ -147,7 +147,7 @@ export function PokemonCardComponent({
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                     >
                       <div className="flex-1">
-                        <div className="font-medium text-sm">{userWithCard.email}</div>
+                        <div className="font-medium text-sm">@{userWithCard.username}</div>
                         <div className="text-xs text-gray-500">Friend Code: {userWithCard.friendCode}</div>
                       </div>
                       <Button

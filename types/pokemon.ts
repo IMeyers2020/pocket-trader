@@ -20,6 +20,8 @@ export interface MissingCard {
 
 export interface UserProfile {
   id: string
-  email: string
-  friend_code?: string
+  username: string
+  friend_code: string
+  created_at?: string
+  updated_at?: string
 }

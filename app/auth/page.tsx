@@ -16,6 +16,7 @@ import { formatFriendCode, isValidFriendCode } from "@/lib/friend-code"
 export default function AuthPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [username, setUsername] = useState("")
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState("")
   const router = useRouter()
@@ -34,9 +35,40 @@ export default function AuthPage() {
     setLoading(true)
     setMessage("")
 
-    // Validate friend code
+    // Validate inputs
+    if (!username.trim()) {
+      setMessage("Please enter a username")
+      setLoading(false)
+      return
+    }
+
+    if (username.length < 3) {
+      setMessage("Username must be at least 3 characters long")
+      setLoading(false)
+      return
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+      setMessage("Username can only contain letters, numbers, underscores, and hyphens")
+      setLoading(false)
+      return
+    }
+
     if (!isValidFriendCode(friendCode)) {
       setMessage("Please enter a valid 16-digit friend code")
+      setLoading(false)
+      return
+    }
+
+    // Check if username already exists
+    const { data: existingUsername } = await supabase
+      .from("user_profiles")
+      .select("id")
+      .eq("username", username.trim())
+      .single()
+
+    if (existingUsername) {
+      setMessage("This username is already taken. Please choose a different one.")
       setLoading(false)
       return
     }
@@ -65,27 +97,22 @@ export default function AuthPage() {
       return
     }
 
-    // Wait a moment for the trigger to create the profile, then update with custom friend code
+    // If signup successful and user is created, create profile
     if (authData.user) {
-      // Wait for the trigger to complete
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const { error: profileError } = await supabase.from("user_profiles").insert({
+        id: authData.user.id,
+        username: username.trim(),
+        friend_code: friendCode,
+      })
 
-      // Update the auto-generated profile with the user's chosen friend code
-      const { error: updateError } = await supabase
-        .from("user_profiles")
-        .update({ friend_code: friendCode })
-        .eq("id", authData.user.id)
-
-      if (updateError) {
-        console.error("Error updating friend code:", updateError)
-        setMessage("Account created successfully! Please check your email for confirmation.")
-      } else {
-        setMessage("Account created successfully! Please check your email for confirmation.")
+      if (profileError) {
+        setMessage("Account created but failed to save profile. Please contact support.")
+        setLoading(false)
+        return
       }
-    } else {
-      setMessage("Check your email for the confirmation link!")
     }
 
+    setMessage("Account created successfully! Please check your email for confirmation.")
     setLoading(false)
   }
 
@@ -153,6 +180,18 @@ export default function AuthPage() {
 
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
+                <div>
+                  <Input
+                    type="text"
+                    placeholder="Username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    3+ characters, letters, numbers, underscores, and hyphens only
+                  </p>
+                </div>
                 <div>
                   <Input
                     type="email"

@@ -11,10 +11,11 @@ import { getSupabaseClient } from "@/lib/supabase"
 import type { PokemonCard } from "@/types/pokemon"
 import { Users, Search, Copy, Check } from "lucide-react"
 import { fetchPokemonCards } from "@/lib/pokemon-api"
+import Image from "next/image"
 
 interface UserWithCard {
   userId: string
-  email: string
+  username: string
   friendCode: string
 }
 
@@ -81,7 +82,7 @@ export default function TradersPage() {
         .select(`
           card_id,
           user_id,
-          user_profiles!inner(friend_code)
+          user_profiles!inner(username, friend_code)
         `)
         .neq("user_id", user.id)
 
@@ -90,7 +91,7 @@ export default function TradersPage() {
       // Get all user profiles
       const { data: allProfiles, error: profilesError } = await supabase
         .from("user_profiles")
-        .select("id, friend_code")
+        .select("id, username, friend_code")
         .neq("id", user.id)
 
       if (profilesError) throw profilesError
@@ -110,10 +111,10 @@ export default function TradersPage() {
           // User has this card if they haven't marked it as missing and they're active
           if (!userMissingThisCard && usersWithMissingCards.has(profile.id)) {
             usersWhoHaveThisCard.push({
-              userId: profile.id,
-              email: `User ${profile.friend_code}`,
-              friendCode: profile.friend_code,
-            })
+              userId: profile.id as string,
+              username: profile.username as string || `User ${profile.friend_code}`,
+              friendCode: profile.friend_code as string,
+            } satisfies UserWithCard)
           }
         })
 
@@ -127,24 +128,6 @@ export default function TradersPage() {
           }
         }
       })
-
-      // Try to get real email addresses
-      try {
-        const { data: usersData, error: usersError } = await supabase.auth.admin.listUsers()
-        if (!usersError && usersData) {
-          opportunities.forEach((opportunity) => {
-            opportunity.usersWithCard = opportunity.usersWithCard.map((userWithCard) => {
-              const userData = usersData.users.find((u) => u.id === userWithCard.userId)
-              return {
-                ...userWithCard,
-                email: userData?.email || userWithCard.email,
-              }
-            })
-          })
-        }
-      } catch (error) {
-        console.log("Using friend codes as fallback")
-      }
 
       // Sort by number of users who have the card (rarest first)
       opportunities.sort((a, b) => a.usersWithCard.length - b.usersWithCard.length)
@@ -256,7 +239,7 @@ export default function TradersPage() {
                         className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
                       >
                         <div className="flex-1">
-                          <div className="font-medium text-sm">{userWithCard.email}</div>
+                          <div className="font-medium text-sm">{userWithCard.username}</div>
                           <div className="text-xs text-gray-500">Code: {userWithCard.friendCode}</div>
                         </div>
                         <Button

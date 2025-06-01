@@ -11,7 +11,7 @@ import { getSupabaseClient } from "@/lib/supabase"
 export function Navigation() {
   const { user, signOut } = useAuth()
   const pathname = usePathname()
-  const [userProfile, setUserProfile] = useState<{ friend_code: string } | null>(null)
+  const [userProfile, setUserProfile] = useState<{ username: string; friend_code: string } | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
 
   const supabase = getSupabaseClient()
@@ -26,27 +26,30 @@ export function Navigation() {
     if (!user) return
 
     try {
-      const { data, error } = await supabase.from("user_profiles").select("friend_code").eq("id", user.id).single()
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("username, friend_code")
+        .eq("id", user.id)
+        .single()
 
       if (!error && data) {
         setUserProfile(data)
       } else if (error && error.code === "PGRST116") {
-        // Profile doesn't exist, create one
+        // Profile doesn't exist, create one with fallback values
+        const fallbackUsername = `user_${user.id.slice(0, 8)}`
+        const fallbackFriendCode = generateFallbackFriendCode()
+
         const { error: insertError } = await supabase.from("user_profiles").insert({
           id: user.id,
-          friend_code: generateFallbackFriendCode(),
+          username: fallbackUsername,
+          friend_code: fallbackFriendCode,
         })
 
         if (!insertError) {
-          // Fetch the newly created profile
-          const { data: newData } = await supabase
-            .from("user_profiles")
-            .select("friend_code")
-            .eq("id", user.id)
-            .single()
-          if (newData) {
-            setUserProfile(newData)
-          }
+          setUserProfile({
+            username: fallbackUsername,
+            friend_code: fallbackFriendCode,
+          })
         }
       }
     } catch (error) {
@@ -74,7 +77,7 @@ export function Navigation() {
     { href: "/", label: "Cards", icon: Home },
     { href: "/collection", label: "My Collection", icon: User },
     { href: "/traders", label: "Find Traders", icon: ArrowLeftRight },
-    { href: "/friends", label: "Friends", icon: Users },
+    { href: "/friends", label: "Active Users", icon: Users },
   ]
 
   return (
@@ -105,13 +108,15 @@ export function Navigation() {
         </div>
         <div className="flex items-center space-x-4">
           <div className="text-right">
-            <div className="text-sm text-gray-600">{user.email}</div>
             {profileLoading ? (
-              <div className="text-xs text-gray-400">Loading...</div>
+              <div className="text-sm text-gray-400">Loading...</div>
             ) : userProfile ? (
-              <div className="text-xs text-blue-600">Code: {userProfile.friend_code}</div>
+              <>
+                <div className="text-sm font-medium text-gray-900">{userProfile.username}</div>
+                <div className="text-xs text-blue-600">Code: {userProfile.friend_code}</div>
+              </>
             ) : (
-              <div className="text-xs text-gray-400">No friend code</div>
+              <div className="text-sm text-gray-600">{user.email}</div>
             )}
           </div>
           <Button variant="outline" size="sm" onClick={signOut}>

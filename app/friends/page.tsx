@@ -13,7 +13,7 @@ import { fetchPokemonCards } from "@/lib/pokemon-api"
 
 interface UserMissingCards {
   userId: string
-  email: string
+  username: string
   friendCode: string
   missingCards: string[]
 }
@@ -61,55 +61,24 @@ export default function FriendsPage() {
         .select(`
         card_id,
         user_id,
-        user_profiles!inner(friend_code)
+        user_profiles!inner(username, friend_code)
       `)
         .neq("user_id", user.id)
 
       if (missingError) throw missingError
 
-      // Get user emails from auth
-      const userIds = [...new Set(missingCardsData.map((item: any) => item.user_id))]
-      const { data: usersData, error: usersError } = await supabase.auth.admin.listUsers()
-
-      if (usersError) {
-        // Fallback without emails
-        const usersMap = new Map()
-        missingCardsData.forEach((item: any) => {
-          if (!usersMap.has(item.user_id)) {
-            usersMap.set(item.user_id, {
-              userId: item.user_id,
-              email: `User ${item.user_profiles.friend_code}`,
-              friendCode: item.user_profiles.friend_code,
-              missingCards: [],
-            })
-          }
-          usersMap.get(item.user_id).missingCards.push(item.card_id)
-        })
-        setUsersMissingCards(Array.from(usersMap.values()))
-        return
-      }
-
-      // Group missing cards by user with emails
+      // Group missing cards by user
       const usersMap = new Map()
-      usersData.users.forEach((u) => {
-        if (userIds.includes(u.id)) {
-          const userMissingData = missingCardsData.find((item: any) => item.user_id === u.id)
-          if (userMissingData) {
-            usersMap.set(u.id, {
-              userId: u.id,
-              email: u.email,
-              friendCode: userMissingData.user_profiles.friend_code,
-              missingCards: [],
-            })
-          }
-        }
-      })
-
       missingCardsData.forEach((item: any) => {
-        const userMissing = usersMap.get(item.user_id)
-        if (userMissing) {
-          userMissing.missingCards.push(item.card_id)
+        if (!usersMap.has(item.user_id)) {
+          usersMap.set(item.user_id, {
+            userId: item.user_id,
+            username: item.user_profiles.username || `User ${item.user_profiles.friend_code}`,
+            friendCode: item.user_profiles.friend_code,
+            missingCards: [],
+          })
         }
+        usersMap.get(item.user_id).missingCards.push(item.card_id)
       })
 
       setUsersMissingCards(Array.from(usersMap.values()))
@@ -132,8 +101,8 @@ export default function FriendsPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Friends Collections</h1>
-          <p className="text-gray-600">See what cards your friends are missing</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Active Users</h1>
+          <p className="text-gray-600">See what cards other users are missing</p>
         </div>
 
         {loading ? (
@@ -151,7 +120,7 @@ export default function FriendsPage() {
                     <CardTitle className="flex items-center space-x-2">
                       <User className="w-5 h-5" />
                       <div className="flex flex-col">
-                        <span>{userMissing.email}</span>
+                        <span>{userMissing.username}</span>
                         <span className="text-sm font-normal text-blue-600">Friend Code: {userMissing.friendCode}</span>
                       </div>
                       <span className="text-sm font-normal text-gray-600">
@@ -183,7 +152,7 @@ export default function FriendsPage() {
         ) : (
           <div className="text-center py-12">
             <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <div className="text-gray-500 text-lg">No friends found</div>
+            <div className="text-gray-500 text-lg">No active users found</div>
             <div className="text-gray-400 text-sm mt-2">
               Invite your friends to join and start tracking cards together!
             </div>
