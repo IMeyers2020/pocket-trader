@@ -85,11 +85,18 @@ export default function TradersPage() {
 
       if (missingError) throw missingError
 
-      // Get ALL user profiles
-      const { data: allProfiles, error: profilesError } = await supabase
+      // Get user profiles only for users who have missing cards (active users)
+      const activeUserIds = [...new Set(allMissingCards.map((missing: any) => missing.user_id))]
+
+      if (activeUserIds.length === 0) {
+        setTradeOpportunities([])
+        return
+      }
+
+      const { data: activeProfiles, error: profilesError } = await supabase
         .from("user_profiles")
         .select("id, username, friend_code")
-        .neq("id", user.id)
+        .in("id", activeUserIds)
 
       if (profilesError) throw profilesError
 
@@ -111,10 +118,11 @@ export default function TradersPage() {
       Array.from(myMissingCards).forEach((cardId) => {
         const usersWhoHaveThisCard: UserWithCard[] = []
 
-        allProfiles.forEach((profile) => {
+        activeProfiles.forEach((profile) => {
           const userMissingThisCard = userMissingCardsMap[profile.id]?.has(cardId) || false
 
           // User has this card if they haven't marked it as missing
+          // (we already know they're active since they're in activeProfiles)
           if (!userMissingThisCard) {
             // Find cards this user needs that I own
             const userMissingCardIds = userMissingCardsMap[profile.id] || new Set()
