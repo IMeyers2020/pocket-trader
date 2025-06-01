@@ -112,7 +112,7 @@ export default function AuthPage() {
       }
     }
 
-    setMessage("Account created successfully! Please check your email for confirmation.")
+    setMessage("Account created successfully!")
     setLoading(false)
   }
 
