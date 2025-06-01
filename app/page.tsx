@@ -14,7 +14,7 @@ import { fetchPokemonCards } from "@/lib/pokemon-api"
 
 interface UserWithCard {
   userId: string
-  email: string
+  username: string
   friendCode: string
 }
 
@@ -28,6 +28,7 @@ export default function HomePage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPack, setSelectedPack] = useState<string>("all")
   const [selectedType, setSelectedType] = useState<string>("all")
+  const [selectedRarity, setSelectedRarity] = useState<string>("all")
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const supabase = getSupabaseClient()
 
@@ -87,7 +88,7 @@ export default function HomePage() {
         .select(`
           card_id,
           user_id,
-          user_profiles!inner(friend_code)
+          user_profiles!inner(username, friend_code)
         `)
         .neq("user_id", user.id)
 
@@ -96,16 +97,13 @@ export default function HomePage() {
       // Get all user profiles to find users who have marked cards as missing
       const { data: allProfiles, error: profilesError } = await supabase
         .from("user_profiles")
-        .select("id, friend_code")
+        .select("id, username, friend_code")
         .neq("id", user.id)
 
       if (profilesError) throw profilesError
 
       // Create a set of users who have missing cards
       const usersWithMissingCards = new Set(allMissingCards.map((item: any) => item.user_id))
-
-      // Create a set of all card IDs that other users are missing
-      const cardsMissingByOthers = new Set(allMissingCards.map((item: any) => item.card_id))
 
       // For each card, determine which users have it (users who haven't marked it as missing)
       const usersWithCardsMap: Record<string, UserWithCard[]> = {}
@@ -128,7 +126,7 @@ export default function HomePage() {
           if (!userMissingThisCard && usersWithMissingCards.has(profile.id)) {
             usersWhoHaveThisCard.push({
               userId: profile.id,
-              email: `User ${profile.friend_code}`, // We'll try to get email later
+              username: profile.username || `User ${profile.friend_code}`,
               friendCode: profile.friend_code,
             })
           }
@@ -137,26 +135,6 @@ export default function HomePage() {
         if (usersWhoHaveThisCard.length > 0) {
           usersWithCardsMap[cardId] = usersWhoHaveThisCard
         }
-      }
-
-      // Try to get actual email addresses (this might fail due to RLS, so we'll use fallback)
-      try {
-        const { data: usersData, error: usersError } = await supabase.auth.admin.listUsers()
-        if (!usersError && usersData) {
-          // Update with real email addresses
-          Object.keys(usersWithCardsMap).forEach((cardId) => {
-            usersWithCardsMap[cardId] = usersWithCardsMap[cardId].map((userWithCard) => {
-              const userData = usersData.users.find((u) => u.id === userWithCard.userId)
-              return {
-                ...userWithCard,
-                email: userData?.email || userWithCard.email,
-              }
-            })
-          })
-        }
-      } catch (error) {
-        // Fallback to friend codes if we can't get emails
-        console.log("Using friend codes as fallback for user identification")
       }
 
       setUsersWithCards(usersWithCardsMap)
@@ -205,11 +183,13 @@ export default function HomePage() {
     const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesPack = selectedPack === "all" || card.pack === selectedPack
     const matchesType = selectedType === "all" || card.type === selectedType
-    return matchesSearch && matchesPack && matchesType
+    const matchesRarity = selectedRarity === "all" || card.rarity === selectedRarity
+    return matchesSearch && matchesPack && matchesType && matchesRarity
   })
 
   const packs = [...new Set(cards.map((card) => card.pack))]
   const types = [...new Set(cards.map((card) => card.type))]
+  const rarities = [...new Set(cards.map((card) => card.rarity))].sort()
 
   if (authLoading || !user) {
     return (
@@ -270,6 +250,19 @@ export default function HomePage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={selectedRarity} onValueChange={setSelectedRarity}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Rarity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Rarities</SelectItem>
+                  {rarities.map((rarity) => (
+                    <SelectItem key={rarity} value={rarity}>
+                      {rarity}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
@@ -277,15 +270,19 @@ export default function HomePage() {
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm border p-4">
-            <div className="text-2xl font-bold text-blue-600">{cards.length}</div>
+            <div className="text-2xl font-bold text-blue-600">{filteredCards.length}</div>
             <div className="text-sm text-gray-600">Total Cards</div>
           </div>
           <div className="bg-white rounded-lg shadow-sm border p-4">
-            <div className="text-2xl font-bold text-green-600">{cards.length - missingCards.size}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {filteredCards.length - filteredCards.filter((card) => missingCards.has(card.id)).length}
+            </div>
             <div className="text-sm text-gray-600">Cards Owned</div>
           </div>
           <div className="bg-white rounded-lg shadow-sm border p-4">
-            <div className="text-2xl font-bold text-red-600">{missingCards.size}</div>
+            <div className="text-2xl font-bold text-red-600">
+              {filteredCards.filter((card) => missingCards.has(card.id)).length}
+            </div>
             <div className="text-sm text-gray-600">Cards Missing</div>
           </div>
         </div>

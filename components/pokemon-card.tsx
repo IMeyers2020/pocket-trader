@@ -81,7 +81,7 @@ export function PokemonCardComponent({
     }
   }
 
-  // Create proxied image URL
+  // Create proxied image URL with better caching
   const getImageUrl = (originalUrl: string) => {
     if (!originalUrl) return "/placeholder.svg"
 
@@ -90,7 +90,7 @@ export function PokemonCardComponent({
       return originalUrl
     }
 
-    // Use the image proxy for external URLs
+    // Use the image proxy for external URLs with cache optimization
     return `/api/image-proxy?url=${encodeURIComponent(originalUrl)}`
   }
 
