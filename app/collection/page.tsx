@@ -33,6 +33,7 @@ export default function CollectionPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPack, setSelectedPack] = useState<string>("all")
   const [selectedType, setSelectedType] = useState<string>("all")
+  const [selectedRarity, setSelectedRarity] = useState<string>("all")
   const [packProgress, setPackProgress] = useState<PackProgress[]>([])
   const [overallProgress, setOverallProgress] = useState<PackProgress | null>(null)
   const supabase = getSupabaseClient()
@@ -70,6 +71,7 @@ export default function CollectionPage() {
 
   const fetchMissingCards = async () => {
     if (!user) return
+
     try {
       const { data, error } = await supabase.from("missing_cards").select("card_id").eq("user_id", user.id)
 
@@ -166,7 +168,8 @@ export default function CollectionPage() {
     const matchesSearch = card.name.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesPack = selectedPack === "all" || card.pack === selectedPack
     const matchesType = selectedType === "all" || card.type === selectedType
-    return matchesSearch && matchesPack && matchesType
+    const matchesRarity = selectedRarity === "all" || card.rarity === selectedRarity
+    return matchesSearch && matchesPack && matchesType && matchesRarity
   })
 
   const ownedCards = filteredCards.filter((card) => !missingCards.has(card.id))
@@ -174,6 +177,7 @@ export default function CollectionPage() {
 
   const packs = [...new Set(cards.map((card) => card.pack))]
   const types = [...new Set(cards.map((card) => card.type))]
+  const rarities = [...new Set(cards.map((card) => card.rarity))].sort()
 
   // Get the progress for the selected pack or overall
   const selectedPackProgress =
@@ -238,6 +242,19 @@ export default function CollectionPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Select value={selectedRarity} onValueChange={setSelectedRarity}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Rarity" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Rarities</SelectItem>
+                  {rarities.map((rarity) => (
+                    <SelectItem key={rarity} value={rarity}>
+                      {rarity}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
@@ -255,29 +272,29 @@ export default function CollectionPage() {
             {
               !missingCardsLoading && (
                 <>
-                  <h2 className="text-xl font-semibold mb-4">
-                    {selectedPack === "all" ? "Overall Collection Progress" : `${selectedPackProgress.packName} Progress`}
-                  </h2>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700">{selectedPackProgress.packName}</span>
-                      <span className="text-sm text-gray-500">
-                        {selectedPackProgress.owned}/{selectedPackProgress.total} ({selectedPackProgress.percentage}%)
-                      </span>
-                    </div>
-                    <Progress
-                      value={selectedPackProgress.percentage}
-                      className="h-4"
-                      indicatorClassName={cn(getProgressColor(selectedPackProgress.percentage))}
-                    />
-
-                    {/* Completion message */}
-                    {selectedPackProgress.percentage === 100 && (
-                      <div className="text-center text-green-600 font-medium mt-2">
-                        {selectedPack === "all" ? "🎉 Complete! You've collected all cards currently in the game!" : "🎉 Complete! You've collected all cards in this set!"}
-                      </div>
-                    )}
+                <h2 className="text-xl font-semibold mb-4">
+                  {selectedPack === "all" ? "Overall Collection Progress" : `${selectedPackProgress.packName} Progress`}
+                </h2>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-gray-700">{selectedPackProgress.packName}</span>
+                    <span className="text-sm text-gray-500">
+                      {selectedPackProgress.owned}/{selectedPackProgress.total} ({selectedPackProgress.percentage}%)
+                    </span>
                   </div>
+                  <Progress
+                    value={selectedPackProgress.percentage}
+                    className="h-4"
+                    indicatorClassName={cn(getProgressColor(selectedPackProgress.percentage))}
+                  />
+
+                  {/* Completion message */}
+                  {selectedPackProgress.percentage === 100 && (
+                    <div className="text-center text-green-600 font-medium mt-2">
+                      🎉 Complete! You've collected all cards in this set!
+                    </div>
+                  )}
+                </div>
                 </>
               )
             }
@@ -329,7 +346,7 @@ export default function CollectionPage() {
               <div className="text-center py-12">
                 <div className="text-gray-500 text-lg">No owned cards found</div>
                 <div className="text-gray-400 text-sm mt-2">
-                  {searchTerm || selectedPack !== "all" || selectedType !== "all"
+                  {searchTerm || selectedPack !== "all" || selectedType !== "all" || selectedRarity !== "all"
                     ? "Try adjusting your search or filters"
                     : "Start marking cards as missing to see your owned collection"}
                 </div>
@@ -358,7 +375,7 @@ export default function CollectionPage() {
               <div className="text-center py-12">
                 <div className="text-gray-500 text-lg">No missing cards found</div>
                 <div className="text-gray-400 text-sm mt-2">
-                  {searchTerm || selectedPack !== "all" || selectedType !== "all"
+                  {searchTerm || selectedPack !== "all" || selectedType !== "all" || selectedRarity !== "all"
                     ? "Try adjusting your search or filters"
                     : "You have all the cards! 🎉"}
                 </div>
