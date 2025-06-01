@@ -285,16 +285,16 @@ export default function TradersPage() {
                         </div>
 
                         {/* Cards you can trade to them */}
-                        {userWithCard.cardsTheyNeed.length > 0 && (
+                        {userWithCard.cardsTheyNeed.filter(x => x.rarity === opportunity.card.rarity).length > 0 && (
                           <div className="border-t pt-4">
                             <div className="flex items-center space-x-2 mb-3">
                               <ArrowRightLeft className="w-4 h-4 text-green-600" />
                               <span className="text-sm font-medium text-green-700">
-                                Cards you can trade to them ({userWithCard.cardsTheyNeed.length})
+                                Cards you can trade to them ({userWithCard.cardsTheyNeed.filter(x => x.rarity === opportunity.card.rarity).length})
                               </span>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                              {userWithCard.cardsTheyNeed.slice(0, 8).map((card) => (
+                              {userWithCard.cardsTheyNeed.filter(x => x.rarity === opportunity.card.rarity).slice(0, 8).map((card) => (
                                 <div key={card.id} className="flex items-center space-x-2 p-2 bg-white rounded border">
                                   <div className="w-8 h-10 relative bg-gray-100 rounded overflow-hidden flex-shrink-0">
                                     <Image
@@ -311,9 +311,9 @@ export default function TradersPage() {
                                   </div>
                                 </div>
                               ))}
-                              {userWithCard.cardsTheyNeed.length > 8 && (
+                              {userWithCard.cardsTheyNeed.filter(x => x.rarity === opportunity.card.rarity).length > 8 && (
                                 <div className="flex items-center justify-center p-2 bg-white rounded border text-xs text-gray-500">
-                                  +{userWithCard.cardsTheyNeed.length - 8} more
+                                  +{userWithCard.cardsTheyNeed.filter(x => x.rarity === opportunity.card.rarity).length - 8} more
                                 </div>
                               )}
                             </div>
