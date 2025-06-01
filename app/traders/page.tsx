@@ -76,19 +76,14 @@ export default function TradersPage() {
     if (!user || allCards.length === 0) return
 
     try {
-      // Get all missing cards from other users
       const { data: allMissingCards, error: missingError } = await supabase
         .from("missing_cards")
-        .select(`
-          card_id,
-          user_id,
-          user_profiles!inner(username, friend_code)
-        `)
+        .select("card_id, user_id")
         .neq("user_id", user.id)
 
       if (missingError) throw missingError
 
-      // Get all user profiles
+      // Get ALL user profiles
       const { data: allProfiles, error: profilesError } = await supabase
         .from("user_profiles")
         .select("id, username, friend_code")
@@ -96,7 +91,6 @@ export default function TradersPage() {
 
       if (profilesError) throw profilesError
 
-      const usersWithMissingCards = new Set(allMissingCards.map((item: any) => item.user_id))
       const opportunities: TradeOpportunity[] = []
 
       // For each card I'm missing, find users who have it
@@ -108,13 +102,14 @@ export default function TradersPage() {
             (missing: any) => missing.user_id === profile.id && missing.card_id === cardId,
           )
 
-          // User has this card if they haven't marked it as missing and they're active
-          if (!userMissingThisCard && usersWithMissingCards.has(profile.id)) {
+          // User has this card if they haven't marked it as missing
+          // We no longer require them to have marked ANY cards as missing
+          if (!userMissingThisCard) {
             usersWhoHaveThisCard.push({
-              userId: profile.id as string,
-              username: profile.username as string || `User ${profile.friend_code}`,
-              friendCode: profile.friend_code as string,
-            } satisfies UserWithCard)
+              userId: profile.id,
+              username: profile.username || `User ${profile.friend_code}`,
+              friendCode: profile.friend_code,
+            })
           }
         })
 
@@ -146,6 +141,19 @@ export default function TradersPage() {
     } catch (error) {
       console.error("Failed to copy friend code:", error)
     }
+  }
+
+  // Create proxied image URL
+  const getImageUrl = (originalUrl: string) => {
+    if (!originalUrl) return "/placeholder.svg"
+
+    // If it's already a local URL, use it as-is
+    if (originalUrl.startsWith("/") || originalUrl.startsWith("data:")) {
+      return originalUrl
+    }
+
+    // Use the image proxy for external URLs
+    return `/api/image-proxy?url=${encodeURIComponent(originalUrl)}`
   }
 
   const filteredOpportunities = tradeOpportunities.filter((opportunity) =>
@@ -211,11 +219,11 @@ export default function TradersPage() {
                     <div className="flex-shrink-0">
                       <div className="w-16 h-20 relative bg-gray-100 rounded overflow-hidden">
                         <Image
-                          src={opportunity.card.image || "/placeholder.svg"}
+                          src={getImageUrl(opportunity.card.image) || "/placeholder.svg"}
                           alt={opportunity.card.name}
                           fill
                           className="object-cover"
-                          crossOrigin="anonymous"
+                          unoptimized
                         />
                       </div>
                     </div>
@@ -269,7 +277,7 @@ export default function TradersPage() {
             </div>
             <div className="text-gray-400 text-sm mt-2">
               {tradeOpportunities.length === 0
-                ? "Either you have all cards or no other users are active yet"
+                ? "Either you have all cards or no other users are registered yet"
                 : "Try a different search term"}
             </div>
           </div>
